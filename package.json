@@ -1,0 +1,39 @@
+{
+  "name": "dsh-agy-safe",
+  "version": "0.1.0",
+  "description": "dsh plugin: use a logged-in Antigravity CLI (agy) headless session as the chat and subagent model provider",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "antigravity",
+    "agy",
+    "llm-provider"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-llm": "^0.1.2-rc.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-llm": "^0.1.2-rc.1",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
