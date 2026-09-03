@@ -1,0 +1,6 @@
+# dsh-agy-safe bundle patch.
+# Declares the host plugin entry point for Cordis loader, and dsh.client manifest
+# registers the client settings section in the web profile.
+- insert:
+    - id: llm-agy
+      name: 'dsh-agy-safe'

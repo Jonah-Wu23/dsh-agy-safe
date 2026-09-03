@@ -5,11 +5,34 @@
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jonah-Wu23/dsh-agy-safe.git"
+  },
   "exports": {
-    ".": "./lib/index.js"
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
   },
   "files": [
-    "lib"
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
   ],
   "keywords": [
     "dsh-plugin",
@@ -23,8 +46,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/"
+    "build": "tsc -p tsconfig.json && node scripts/wrap-client.mjs",
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
