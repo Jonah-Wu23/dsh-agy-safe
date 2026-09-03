@@ -90,7 +90,8 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 
 ### 4.5 工具调用线协议
 
-- 系统提示中注入工具清单（name + description + JSON Schema）和输出约定：模型要调工具时输出带唯一 sentinel 的围栏块，内容为 `{"name": "...", "arguments": {...}}`，一条回复可含多个块；块外文本即正常回复。
+- 系统提示中注入工具清单（name + description + JSON Schema）和输出约定：模型要调工具时输出带唯一 sentinel 的围栏块，内容为 `{"name": "...", "arguments": {...}}`，一条回复可含多个块；块外文本即正常文本。
+- 工具规则第 5 条：除非用户明确要求，不创建/修改会话目标（goal 工具如 create_goal），不把普通消息推断为长目标——实测 Gemini 会因宿主提示词里的 goal 工具说明而每次对话都执行目标检查/构造，此约束在插件注入侧声明。
 - `ToolCallProtocol` 是增量状态机，三个状态：正文、疑似围栏、围栏内。流结束时未闭合的围栏按纯文本透传；围栏内 JSON 校验失败同样按纯文本透传。模型输出了什么就呈现什么，不伪造调用成功。
 - tool-call 的 `id` 由插件生成（agy 不提供），格式 `agy_tc_<会话内序号>`。
 

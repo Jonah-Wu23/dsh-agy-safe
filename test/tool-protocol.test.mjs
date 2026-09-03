@@ -14,6 +14,7 @@ test('buildToolSystemPrompt formats tools and instructions correctly', () => {
   assert.match(prompt, /get_weather/);
   assert.match(prompt, /<<<TOOL_CALL>>>/);
   assert.match(prompt, /<<<END_TOOL_CALL>>>/);
+  assert.match(prompt, /do NOT create, update, or rewrite conversation goals/i);
 });
 
 test('ToolCallProtocol - pure text streaming', () => {

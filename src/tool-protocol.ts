@@ -28,6 +28,7 @@ export function buildToolSystemPrompt(tools: readonly ToolSchema[]): string {
     '2. Arguments MUST be valid JSON matching the parameters schema.',
     '3. Do NOT execute tools yourself or invent simulated results. Emit the call block and wait for the harness to return the real results.',
     '4. Do NOT call built-in Antigravity CLI tools (like view_file, run_command, etc.) directly; only use the specified tools defined above.',
+    '5. Do NOT create, update, or rewrite conversation goals (goal tools such as create_goal) unless the human user explicitly asks for one. Ordinary conversation needs no goal; never infer goal intent from a plain user message.',
   ].join('\n');
 }
 
