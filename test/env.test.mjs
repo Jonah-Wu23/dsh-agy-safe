@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAgyEnv } from '../lib/session.js';
+import { buildAgyEnv, sessionKeyFor } from '../lib/session.js';
 
 test('buildAgyEnv - keeps whitelisted base vars and AGY_*/AV_* prefixes only', () => {
   const env = buildAgyEnv({
@@ -22,4 +22,16 @@ test('buildAgyEnv - keeps whitelisted base vars and AGY_*/AV_* prefixes only', (
   assert.equal(env.AV_CRED, 'av-cred');
   assert.equal(env.DEEPSEEK_API_KEY, undefined);
   assert.equal(env.OTHER_SECRET, undefined);
+});
+
+test('sessionKeyFor - separates main conversation from auxiliary purposes', () => {
+  assert.equal(sessionKeyFor('s1'), 's1::conversation');
+  assert.equal(sessionKeyFor('s1', 'conversation'), 's1::conversation');
+  assert.equal(sessionKeyFor('s1', 'session-title'), 's1::session-title');
+  assert.equal(sessionKeyFor('s1', 'compaction'), 's1::compaction');
+  // 同一 sessionId 的不同 purpose 必须得到不同键（标题/压缩调用不得与主对话抢进程）
+  assert.notEqual(sessionKeyFor('s1', 'session-title'), sessionKeyFor('s1'));
+  assert.notEqual(sessionKeyFor('s1', 'compaction'), sessionKeyFor('s1'));
+  // 不同会话即使 purpose 相同也互不影响
+  assert.notEqual(sessionKeyFor('s1', 'session-title'), sessionKeyFor('s2', 'session-title'));
 });

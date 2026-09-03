@@ -73,8 +73,8 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 
 ### 4.3 一次请求的数据流
 
-1. dsh agent 循环调 `adapter.stream(options)`，`options` 里有全量 `system/messages/tools`、`reasoningEffort`、`signal`。
-2. `AgySessionManager` 按会话键找常驻进程。进程不存在或指纹分叉，则 kill 旧进程、spawn 新进程（`agy --input-format stream-json --output-format stream-json --dangerously-skip-permissions --model <slug> --effort <e>`，cwd 锁定 scratch 目录），首条消息发送压平后的全量历史。进程健在且指纹一致，只发送增量消息（新的 user 输入和 tool-result）。
+1. dsh agent 循环调 `adapter.stream(options)`，`options` 里有全量 `system/messages/tools`、`reasoningEffort`、`sessionId`、`purpose`、`signal`。
+2. `AgySessionManager` 按会话键找常驻进程；会话键 = `sessionId::purpose`（缺省 purpose 视为 `conversation`）。dsh 的标题/压缩辅助调用与主对话共享 sessionId 但 purpose 不同且可能并发，必须按 purpose 隔离成独立 agy 进程，否则辅助调用的指纹不匹配会把正在流式的主进程杀掉。进程不存在或指纹分叉，则 kill 旧进程、spawn 新进程（`agy --input-format stream-json --output-format stream-json --dangerously-skip-permissions --model <slug> --effort <e>`，cwd 锁定 scratch 目录），首条消息发送压平后的全量历史。进程健在且指纹一致，只发送增量消息（新的 user 输入和 tool-result）。不同 dsh 会话与子代理（childId）各自独立进程，可并行。
 3. agy 的 NDJSON 输出逐行解析：`step_update` 里 `agent_response` 的 `text_delta` 交给 `ToolCallProtocol` 增量解析，分流为 `text-delta` 或 `tool-call-delta`。
 4. `result` 事件映射为 `usage` chunk（agy 的 usage 是累计值，插件存上次累计值算本轮差值）和 `finish` chunk。
 5. `options.signal` 触发 abort 时 kill 进程，按 `LlmError('...', 'ABORTED')` 收尾，下次请求自动重建会话。

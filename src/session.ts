@@ -12,6 +12,15 @@ export interface SessionConfig {
 }
 
 /**
+ * 会话池键：dsh 的标题/压缩辅助调用（purpose='session-title'/'compaction'）
+ * 与主对话共享同一个 sessionId，但历史完全不同且可能并发；按 purpose 隔离
+ * 成独立 agy 进程，避免辅助调用的指纹不匹配把正在流式的主进程杀掉。
+ */
+export function sessionKeyFor(sessionId: string, purpose?: string): string {
+  return `${sessionId}::${purpose !== undefined && purpose !== '' ? purpose : 'conversation'}`;
+}
+
+/**
  * agy 子进程的最小环境白名单：只放行 Windows 基础变量和 agy 自家前缀
  * （`AGY_` 与 `AV_` 前缀），避免模型后端进程把 dsh 宿主环境的密钥等通读走。
  */
@@ -304,13 +313,14 @@ export class AgySessionManager {
     effort: string,
   ): { session: AgySession; prompt: string } {
     const sessionId = options.sessionId ? String(options.sessionId) : 'default';
+    const sessionKey = sessionKeyFor(sessionId, options.purpose);
     const model = options.model;
     const normalizedEffort = effort.toLowerCase();
 
     const flattenedTurns = TranscriptFlattener.flattenTurns(options.messages);
     const incomingFps = flattenedTurns.map((t) => t.fingerprint);
 
-    let session = this.sessions.get(sessionId);
+    let session = this.sessions.get(sessionKey);
 
     // Check if existing session matches model, effort, and history
     if (session && session.isAlive() && session.model === model && session.effort === normalizedEffort) {
@@ -332,11 +342,11 @@ export class AgySessionManager {
     // Mismatch, fork, dead, or first turn: kill old session and spawn a fresh one
     if (session) {
       session.dispose();
-      this.sessions.delete(sessionId);
+      this.sessions.delete(sessionKey);
     }
 
     session = new AgySession(sessionId, model, normalizedEffort, this.config);
-    this.sessions.set(sessionId, session);
+    this.sessions.set(sessionKey, session);
     session.setHistoryFingerprints(incomingFps);
 
     const fullPrompt = TranscriptFlattener.buildFullPrompt(options.system, options.tools, flattenedTurns);
