@@ -11,6 +11,38 @@ export interface SessionConfig {
   streamIdleTimeoutMs: number;
 }
 
+/**
+ * agy 子进程的最小环境白名单：只放行 Windows 基础变量和 agy 自家前缀
+ * （`AGY_` 与 `AV_` 前缀），避免模型后端进程把 dsh 宿主环境的密钥等通读走。
+ */
+const ENV_WHITELIST = [
+  'PATH',
+  'SystemRoot',
+  'USERPROFILE',
+  'HOME',
+  'HOMEDRIVE',
+  'HOMEPATH',
+  'TEMP',
+  'TMP',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'PATHEXT',
+  'COMSPEC',
+] as const;
+
+export function buildAgyEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of ENV_WHITELIST) {
+    const value = base[key];
+    if (value !== undefined) env[key] = value;
+  }
+  for (const [key, value] of Object.entries(base)) {
+    if (value === undefined) continue;
+    if (key.startsWith('AGY_') || key.startsWith('AV_')) env[key] = value;
+  }
+  return env;
+}
+
 export class AgySession {
   readonly sessionId: string;
   readonly model: string;
@@ -85,6 +117,7 @@ export class AgySession {
         cwd: this.config.scratchDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
+        env: buildAgyEnv(),
       });
 
       this.child.on('error', (err) => {

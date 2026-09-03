@@ -1,6 +1,6 @@
 {
   "name": "dsh-agy-safe",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "dsh plugin: use a logged-in Antigravity CLI (agy) headless session as the chat and subagent model provider",
   "type": "module",
   "main": "lib/index.js",

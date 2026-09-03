@@ -97,6 +97,8 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 ### 4.6 安全
 
 - 作为模型后端的 agy 进程永远带 `--dangerously-skip-permissions`，agy 侧不出现任何权限弹窗，工具审核全部在 dsh 侧完成。
+- agy 子进程（模型后端与 `--version`/`-p` 探测）只继承最小环境白名单：PATH、SystemRoot、USERPROFILE、HOME、TEMP/APPDATA 等 Windows 基础变量 + `AGY_*`/`AV_*` 前缀变量。宿主环境里的密钥类变量不会进入模型后端进程（`printenv` 读不到）。交互式登录终端例外：那是用户自己的窗口，环境与手动开终端一致。
+- `ToolCallProtocol` 的未闭合工具块缓冲有上限（默认 256KB）：`<<<TOOL_CALL>>>` 后迟迟不来 `<<<END_TOOL_CALL>>>` 时，超过上限后整块按文本透传并回到文本状态，杜绝无界内存增长。
 - 模型后端的 agy 进程 cwd 固定为 scratch 目录，绝不指向用户项目目录。模型即使无视提示词约束调用了 agy 自身工具，文件写入也只会落在 scratch 里。
 - 提示词层再声明一遍不要使用任何内置工具，作为第一道约束。
 - 登录终端是用户自己的交互式会话，不适用以上两条，行为与用户手动打开终端跑 `agy` 完全相同。
@@ -114,6 +116,7 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 - agy 非零退出或 `status: ERROR` 映射为 `LlmError` 分类：未登录 → `AUTH`（报错文案引导用户到设置页点登录按钮）、未知 slug → `INVALID_REQUEST`、超时 → `TIMEOUT`、进程传输故障 → `TRANSPORT`。
 - `providerRetryPolicy` 只对 `TIMEOUT`、`TRANSPORT`、`RATE_LIMIT`、`SERVER` 开放重试。
 - 空闲看门狗：流超过 `idleTimeoutMs` 无事件则 kill 进程并报 `TIMEOUT`。
+- adapter 的 `stream()` 出错时先 yield 本会话收尾块（含 ToolCallProtocol 缓冲冲洗）后**正常返回，不得 rethrow**：dsh-llm 会把迭代器抛错再转成一份终态 finish chunk，双信号会在已结束的流上二次写出（实测宿主演化为未处理的 `write EOF` 崩溃）。
 
 ## 5. 里程碑
 

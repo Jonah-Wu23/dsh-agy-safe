@@ -45,7 +45,10 @@ export class ToolCallProtocol {
   private accumulatedText = '';
   private toolCallsEmitted: ContentBlock[] = [];
 
-  constructor(private readonly initialBlockIndex = 0) {
+  constructor(
+    private readonly initialBlockIndex = 0,
+    private readonly maxToolCallBuffer = 262_144,
+  ) {
     this.currentBlockIndex = initialBlockIndex;
   }
 
@@ -98,6 +101,14 @@ export class ToolCallProtocol {
         // We are inside a tool call block, looking for TOOL_CALL_END
         const endIndex = this.buffer.indexOf(TOOL_CALL_END);
         if (endIndex === -1) {
+          if (this.buffer.length > this.maxToolCallBuffer) {
+            // 未闭合块超过缓冲上限：按 EOF 未闭合的同一语义整体透传为文本，
+            // 回到文本状态继续解析后续 delta，不让内存无界增长。
+            chunks.push(...this.emitText(`${TOOL_CALL_START}${this.buffer}`));
+            this.buffer = '';
+            this.inToolCall = false;
+            continue;
+          }
           // Still accumulating tool call body, wait for end tag
           break;
         } else {

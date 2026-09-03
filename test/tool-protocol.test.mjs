@@ -114,3 +114,17 @@ test('ToolCallProtocol - unclosed tool call at EOF flushes as text', () => {
   const text = chunks.filter((c) => c.type === 'text-delta').map((c) => c.text).join('');
   assert.match(text, /unclosed/);
 });
+
+test('ToolCallProtocol - unclosed tool call exceeding buffer cap flushes as text and keeps parsing', () => {
+  const protocol = new ToolCallProtocol(0, 1024);
+  const junk = 'x'.repeat(2048);
+  const chunks = protocol.processDelta(`${TOOL_CALL_START}${junk}`);
+  const textDeltas = chunks.filter((c) => c.type === 'text-delta').map((c) => c.text);
+  assert.ok(textDeltas.join('').startsWith(TOOL_CALL_START), 'over-cap block emitted as text');
+  assert.equal(protocol.hasToolCalls(), false);
+  // 溢出后回到文本状态，后续 delta 继续正常出文本
+  const rest = protocol.processDelta(' continued text');
+  assert.equal(rest.some((c) => c.type === 'text-delta' && c.text === ' continued text'), true);
+  const finalChunks = protocol.flush();
+  assert.ok(finalChunks.some((c) => c.type === 'block-end'), 'text block closes cleanly');
+});

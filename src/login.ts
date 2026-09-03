@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { buildAgyEnv } from './session.js';
 
 export interface AgyStatusInfo {
   installed: boolean;
@@ -26,7 +27,7 @@ export async function detectAgyStatus(agyPath: string, scratchDir: string): Prom
   }
 
   return new Promise((resolve) => {
-    execFile(agyPath, ['--version'], { timeout: 4000 }, (error, stdout) => {
+    execFile(agyPath, ['--version'], { timeout: 4000, env: buildAgyEnv() }, (error, stdout) => {
       if (error) {
         resolve({
           installed: false,
@@ -97,7 +98,7 @@ export async function verifyCredentials(agyPath: string, scratchDir: string): Pr
         '--print-timeout',
         '15s',
       ],
-      { cwd: scratchDir, timeout: 20_000 },
+      { cwd: scratchDir, timeout: 20_000, env: buildAgyEnv() },
       (error, stdout) => {
         if (error) {
           resolve({

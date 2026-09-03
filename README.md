@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Jonah-Wu23/dsh-agy-safe/releases"><img src="https://img.shields.io/badge/version-v0.1.0-blue" alt="Version 0.1.0" /></a>
+  <a href="https://github.com/Jonah-Wu23/dsh-agy-safe/releases"><img src="https://img.shields.io/badge/version-v0.1.3-blue" alt="Version 0.1.3" /></a>
   <img src="https://img.shields.io/badge/platform-DSH%20%7C%20Node.js%20ESM-2F5D50" alt="Platform" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-5B6C8F" alt="MIT License" /></a>
   <a href="https://github.com/topics/dsh-plugin"><img src="https://img.shields.io/badge/topic-dsh--plugin-E8B25C" alt="dsh-plugin" /></a>

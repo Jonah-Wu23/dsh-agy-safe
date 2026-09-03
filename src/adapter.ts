@@ -67,6 +67,9 @@ export class AgyAdapter extends LlmAdapter {
         }
       }
     } catch (err: unknown) {
+      // dsh-llm 会把迭代器抛错转成唯一的终态 finish chunk；这里先产出本会话的
+      // 收尾块（含 ToolCallProtocol 缓冲冲洗）后正常返回，绝不 rethrow，
+      // 否则宿主会在已结束的流上再写一份 finish，导致 write EOF。
       if (options.signal?.aborted) {
         for (const c of emitter.handleAbort()) {
           yield c;
@@ -77,7 +80,6 @@ export class AgyAdapter extends LlmAdapter {
           yield c;
         }
       }
-      throw err;
     }
   }
 
