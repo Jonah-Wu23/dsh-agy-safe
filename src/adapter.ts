@@ -21,7 +21,7 @@ export class AgyAdapter extends LlmAdapter {
 
   constructor(private readonly config: Required<AgyPluginConfig>) {
     super();
-    this.catalog = new ModelCatalog(config.models);
+    this.catalog = new ModelCatalog(config.agyPath);
     this.sessionManager = new AgySessionManager({
       agyPath: config.agyPath,
       scratchDir: config.scratchDir,
@@ -55,10 +55,7 @@ export class AgyAdapter extends LlmAdapter {
   }
 
   override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    const { session, prompt } = this.sessionManager.resolvePromptAndSession(
-      options,
-      this.config.defaultEffort,
-    );
+    const { session, prompt } = this.sessionManager.resolvePromptAndSession(options, this.resolveEffort(options));
 
     const emitter = new ChunkEmitter(0);
 
@@ -82,6 +79,22 @@ export class AgyAdapter extends LlmAdapter {
       }
       throw err;
     }
+  }
+
+  /**
+   * 计算出本次生成要传给 agy 的 --effort 值。
+   * 目录中无档位变体的模型（如 claude-sonnet-4-6）不能带 --effort，agy 会拒绝；
+   * 有档位的模型优先用请求指定档位，未指定时落到配置默认档位。
+   */
+  private resolveEffort(options: GenerateOptions): string {
+    const requested = options.reasoningEffort !== undefined
+      ? String(options.reasoningEffort).toLowerCase()
+      : undefined;
+    const efforts = this.catalog.peekEfforts(options.model);
+    if (efforts !== undefined && efforts.length === 0) {
+      return requested ?? '';
+    }
+    return requested ?? this.config.defaultEffort;
   }
 
   dispose(): void {

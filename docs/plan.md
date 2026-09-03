@@ -54,7 +54,7 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 
 浏览器侧 `apply` 完成一件事：`ctx.slots.register({name:'settings.section', id:'agy', order:45, label:'Antigravity CLI'}, AgySection)`。
 
-设置段 `llm-agy` 的字段：`agyPath`（默认 `'agy'`）、`defaultEffort`（默认 `'medium'`）、`models` 覆盖表、`scratchDir`（默认 `~/.dsh/llm-agy/scratch`）、`idleTimeoutMs`。
+设置段 `llm-agy` 的字段：`agyPath`（默认 `'agy'`）、`defaultEffort`（默认 `'medium'`）、`scratchDir`（默认 `~/.dsh/llm-agy/scratch`）、`idleTimeoutMs`、`streamIdleTimeoutMs`、`retryPolicy`（模型目录由 `agy models` 动态提供，不在设置段里）。
 
 ### 4.2 组件
 
@@ -103,9 +103,11 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 
 ### 4.7 模型目录与思考强度
 
-- `listModels` 返回内置 slug 快照表（以 `agy models` 实测输出为准收录，如 `gemini-3.1-pro-high`、`claude-sonnet-4-6`），配置里的 `models` 覆盖表可增改。`contextWindow` 逐模型硬编码，未知模型给保守默认值。
-- `resolveModelInfo` 声明 `reasoning.efforts = [low, medium, high]`，`defaultEffort` 取配置。dsh 传入的 `reasoningEffort` 透传为 `--effort`。
-- slug 自带 `-high` / `-medium` 后缀与 `--effort` 的关系在 M0 spike 实测确认；若两者互斥，slug 后缀优先。
+- `listModels` 运行时执行一次 `agy models`（stdout 为 `id\t名称` 数据行，spinner 走 stderr），严格解析后按基础模型归组：`-low/-medium/-high` 后缀且显示名匹配 ` (Low)/(Medium)/(High)` 的条目合并为同一基础模型，档位集合为该模型实际存在的档位（如 `gemini-3.1-pro` 只有 low/high；claude 系无档位）。带 5 分钟 TTL 缓存；agy 缺失或命令失败原样抛错，不伪造清单。
+- agy 模型的档位信息在 `--model` 的裸 id（如 `gemini-3.8-flash`）+ `--effort` 传递，已实测：裸 id 合法，组合档位合法；**无档位模型（claude 系）传 `--effort` 会被 agy 以 `invalid model selection` 拒绝**，因此这类模型在 resolve 结果里不声明 reasoning（UI 不出现 effort 选择器），spawn 时也不带 `--effort`。
+- `contextWindow` 用官方 Model Card 数字按基础模型硬编码（Gemini 3.x 全系 1,048,576；Claude 4.6 双子 1,000,000；GPT-OSS 120B 131,072；thinking 档位不改变上下文窗口），表外的模型省略该字段；未知模型回退全档位 + 配置默认 effort。
+- `spawn('agy', ['models'])` 必须 `stdio: ['ignore', 'pipe', 'pipe']`：agy 在 stdin 为打开的管道时会挂起等待 EOF（Windows 实测）。
+- 设置段无 `models` 字段（目录完全来自 agy models 输出）。
 
 ### 4.8 错误与中止
 

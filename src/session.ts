@@ -268,11 +268,11 @@ export class AgySessionManager {
 
   resolvePromptAndSession(
     options: GenerateOptions,
-    defaultEffort: string,
+    effort: string,
   ): { session: AgySession; prompt: string } {
     const sessionId = options.sessionId ? String(options.sessionId) : 'default';
     const model = options.model;
-    const effort = (options.reasoningEffort ? String(options.reasoningEffort) : defaultEffort).toLowerCase();
+    const normalizedEffort = effort.toLowerCase();
 
     const flattenedTurns = TranscriptFlattener.flattenTurns(options.messages);
     const incomingFps = flattenedTurns.map((t) => t.fingerprint);
@@ -280,7 +280,7 @@ export class AgySessionManager {
     let session = this.sessions.get(sessionId);
 
     // Check if existing session matches model, effort, and history
-    if (session && session.isAlive() && session.model === model && session.effort === effort) {
+    if (session && session.isAlive() && session.model === model && session.effort === normalizedEffort) {
       const existingFps = session.getHistoryFingerprints();
       // Check prefix match
       if (
@@ -302,7 +302,7 @@ export class AgySessionManager {
       this.sessions.delete(sessionId);
     }
 
-    session = new AgySession(sessionId, model, effort, this.config);
+    session = new AgySession(sessionId, model, normalizedEffort, this.config);
     this.sessions.set(sessionId, session);
     session.setHistoryFingerprints(incomingFps);
 

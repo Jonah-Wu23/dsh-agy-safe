@@ -31,7 +31,7 @@ export interface AgyResultEvent {
     duration_seconds?: number;
     num_turns?: number;
     usage?: AgyUsage;
-    error?: {
+    error?: string | {
       code?: string;
       message?: string;
     };
@@ -118,11 +118,14 @@ export class ChunkEmitter {
       // 3. Emit finish reason
       let finishReason: FinishReason;
       if (res.status === 'ERROR') {
+        const errorMessage = typeof res.error === 'string'
+          ? res.error
+          : res.error?.message || 'Antigravity CLI returned error status';
         finishReason = {
           kind: 'error',
           failure: {
-            message: res.error?.message || 'Antigravity CLI returned error status',
-            code: res.error?.code || 'SERVER_ERROR',
+            message: errorMessage,
+            code: typeof res.error === 'object' && res.error?.code ? res.error.code : 'SERVER_ERROR',
           },
         };
       } else if (this.toolProtocol.hasToolCalls()) {
