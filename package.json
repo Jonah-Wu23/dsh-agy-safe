@@ -47,6 +47,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/wrap-client.mjs",
+    "prepare": "npm run build",
     "test": "npm run build && node --test test/*.test.mjs"
   },
   "peerDependencies": {

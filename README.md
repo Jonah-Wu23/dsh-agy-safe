@@ -80,20 +80,18 @@
 在 DeepSeek Harness 环境中执行安装命令：
 
 ```bash
-dsh plugin --profile web add github:Jonah-Wu23/dsh-agy-safe
+dsh plugin --profile web add dsh-agy-safe
 ```
 
-也可使用 Release 中的打包文件进行安装：
+发布到 npm 的包里已含编译产物 `lib/`（`npm publish` 经 `prepare` 自动构建），单条命令即可安装，无需其他配置。
 
-```bash
-dsh plugin --profile web add https://github.com/Jonah-Wu23/dsh-agy-safe/releases/download/v0.1.0/dsh-agy-safe-0.1.0.tgz
-```
-
-如需使用本地源码路径测试，可执行：
+如需使用本地源码路径联调：
 
 ```bash
 dsh plugin --profile web add <本地仓库路径>
 ```
+
+> 本地仓库与 `github:` 源不包含 `lib/`（构建产物不入库）：`github:` 安装依赖 pnpm 执行 `prepare` 构建，若 pnpm 提示忽略了 `dsh-agy-safe` 的构建脚本，需在 profile 的 `pnpm-workspace.yaml` 的 `allowBuilds` 中放行（`dsh-agy-safe@0.1.0: true`）后重新安装。
 
 安装完成后重新启动服务：
 
