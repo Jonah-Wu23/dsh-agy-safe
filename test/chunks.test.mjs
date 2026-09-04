@@ -1,11 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChunkEmitter } from '../lib/chunks.js';
+import { UsageBaseline } from '../lib/usage.js';
 
-test('ChunkEmitter - text delta and usage calculation', () => {
-  const emitter = new ChunkEmitter();
+function resultEvent(usage) {
+  return JSON.stringify({ event: 'result', result: { status: 'SUCCESS', usage } });
+}
 
-  // 1. Send step_update
+test('ChunkEmitter - text delta routed through protocol', () => {
+  const emitter = new ChunkEmitter(0, new UsageBaseline());
+
   const stepLine = JSON.stringify({
     event: 'step_update',
     step_update: {
@@ -15,66 +19,51 @@ test('ChunkEmitter - text delta and usage calculation', () => {
   });
   const c1 = emitter.handleLine(stepLine);
   assert.equal(c1.some((c) => c.type === 'text-delta' && c.text === 'Hello from agy!'), true);
+});
 
-  // 2. Send result
-  const resultLine = JSON.stringify({
-    event: 'result',
-    result: {
-      status: 'SUCCESS',
-      response: 'Hello from agy!',
-      usage: {
-        input_tokens: 1500,
-        output_tokens: 40,
-        thinking_tokens: 30,
-        total_tokens: 1540,
-      },
-    },
-  });
-  const c2 = emitter.handleLine(resultLine);
+test('ChunkEmitter - usage chunk delegates to the injected tracker', () => {
+  const emitter = new ChunkEmitter(0, new UsageBaseline());
 
-  const usageChunk = c2.find((c) => c.type === 'usage');
+  const c = emitter.handleLine(
+    resultEvent({ input_tokens: 1500, output_tokens: 40, thinking_tokens: 30 }),
+  );
+
+  const usageChunk = c.find((x) => x.type === 'usage');
   assert.ok(usageChunk);
   assert.equal(usageChunk.usage.inputTokens, 1500);
-  assert.equal(usageChunk.usage.outputTokens, 40);
+  assert.equal(usageChunk.usage.outputTokens, 10); // 40 - thinking 30
   assert.equal(usageChunk.usage.reasoningTokens, 30);
+  assert.equal(usageChunk.usage.totalTokens, 1540);
 
-  const finishChunk = c2.find((c) => c.type === 'finish');
+  const finishChunk = c.find((x) => x.type === 'finish');
   assert.ok(finishChunk);
   assert.equal(finishChunk.reason.kind, 'stop');
 });
 
-test('ChunkEmitter - incremental usage across multiple turns', () => {
-  const emitter = new ChunkEmitter();
+test('ChunkEmitter - per-turn emitters over one reused session report increments (regression)', () => {
+  // 生产组装复现：AgySessionManager 指纹前缀匹配时复用同一 AgySession（同一
+  // agy 进程，result.usage 为会话累计值），而 AgyAdapter.stream() 每次调用新建
+  // ChunkEmitter。差分基线必须随会话持久：官方 apple 两轮样例（累计 4 → 8）
+  // 下，第二轮应报本轮增量 4，而不是累计值 8。
+  const baseline = new UsageBaseline();
 
-  // Turn 1 result
-  const r1 = emitter.handleLine(JSON.stringify({
-    event: 'result',
-    result: {
-      status: 'SUCCESS',
-      usage: { input_tokens: 100, output_tokens: 20, thinking_tokens: 10 },
-    },
-  }));
-  const u1 = r1.find((c) => c.type === 'usage');
-  assert.equal(u1.usage.inputTokens, 100);
-  assert.equal(u1.usage.outputTokens, 20);
-  assert.equal(u1.usage.reasoningTokens, 10);
+  const first = new ChunkEmitter(0, baseline).handleLine(
+    resultEvent({ input_tokens: 30384, output_tokens: 4 }),
+  );
+  const u1 = first.find((c) => c.type === 'usage').usage;
+  assert.equal(u1.outputTokens, 4);
+  assert.equal(u1.inputTokens, 30384);
 
-  // Turn 2 result (cumulative tokens: 250 input, 50 output)
-  const r2 = emitter.handleLine(JSON.stringify({
-    event: 'result',
-    result: {
-      status: 'SUCCESS',
-      usage: { input_tokens: 250, output_tokens: 50, thinking_tokens: 25 },
-    },
-  }));
-  const u2 = r2.find((c) => c.type === 'usage');
-  assert.equal(u2.usage.inputTokens, 150); // 250 - 100
-  assert.equal(u2.usage.outputTokens, 30);  // 50 - 20
-  assert.equal(u2.usage.reasoningTokens, 15); // 25 - 10
+  const second = new ChunkEmitter(0, baseline).handleLine(
+    resultEvent({ input_tokens: 30662, output_tokens: 8 }),
+  );
+  const u2 = second.find((c) => c.type === 'usage').usage;
+  assert.equal(u2.outputTokens, 4); // 8 - 4，而非累计值 8
+  assert.equal(u2.inputTokens, 278); // 30662 - 30384
 });
 
 test('ChunkEmitter - error status in result', () => {
-  const emitter = new ChunkEmitter();
+  const emitter = new ChunkEmitter(0, new UsageBaseline());
   const res = emitter.handleLine(JSON.stringify({
     event: 'result',
     result: {
@@ -91,14 +80,14 @@ test('ChunkEmitter - error status in result', () => {
 });
 
 test('ChunkEmitter - terminal error and abort handlers', () => {
-  const emitter1 = new ChunkEmitter();
+  const emitter1 = new ChunkEmitter(0, new UsageBaseline());
   const errorChunks = emitter1.handleTerminalError(new Error('Process died'), 'TRANSPORT');
   const errFinish = errorChunks.find((c) => c.type === 'finish');
   assert.ok(errFinish);
   assert.equal(errFinish.reason.kind, 'error');
   assert.equal(errFinish.reason.failure.code, 'TRANSPORT');
 
-  const emitter2 = new ChunkEmitter();
+  const emitter2 = new ChunkEmitter(0, new UsageBaseline());
   const abortChunks = emitter2.handleAbort();
   const abortFinish = abortChunks.find((c) => c.type === 'finish');
   assert.ok(abortFinish);

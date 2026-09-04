@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import readline from 'node:readline';
-import { LlmError, type GenerateOptions } from '@deepseek-ai/dsh-llm';
+import { LlmError, type GenerateOptions, type TokenUsage } from '@deepseek-ai/dsh-llm';
 import { TranscriptFlattener, type FlattenedTurn } from './flatten.js';
+import { UsageBaseline, type UsageTracker } from './usage.js';
+import type { AgyUsage } from './chunks.js';
 
 export interface SessionConfig {
   agyPath: string;
@@ -52,7 +54,7 @@ export function buildAgyEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Proce
   return env;
 }
 
-export class AgySession {
+export class AgySession implements UsageTracker {
   readonly sessionId: string;
   readonly model: string;
   readonly effort: string;
@@ -60,6 +62,7 @@ export class AgySession {
   private historyFingerprints: string[] = [];
   private lastActivity = Date.now();
   private idleTimer: NodeJS.Timeout | null = null;
+  private usageBaseline = new UsageBaseline();
 
   constructor(
     sessionId: string,
@@ -75,6 +78,14 @@ export class AgySession {
 
   isAlive(): boolean {
     return this.child !== null && this.child.exitCode === null && !this.child.killed;
+  }
+
+  /**
+   * 会话级 usage 差分：agy 持续会话的 result.usage 是本进程的累计值，
+   * 基线与进程同生命周期，跨 stream() 调用持久。
+   */
+  takeUsageDelta(usage: AgyUsage): TokenUsage {
+    return this.usageBaseline.takeUsageDelta(usage);
   }
 
   getHistoryFingerprints(): readonly string[] {
@@ -103,6 +114,10 @@ export class AgySession {
   }
 
   private spawnProcess(): void {
+    // 新进程 = 新 agy 会话，usage 累计计数器从零开始，差分基线必须同步归零
+    //（覆盖 streamTurn 里进程死亡后的 respawn 竞态路径，否则差分会算错）
+    this.usageBaseline = new UsageBaseline();
+
     if (!existsSync(this.config.scratchDir)) {
       mkdirSync(this.config.scratchDir, { recursive: true });
     }

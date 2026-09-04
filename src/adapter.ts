@@ -57,7 +57,9 @@ export class AgyAdapter extends LlmAdapter {
   override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const { session, prompt } = this.sessionManager.resolvePromptAndSession(options, this.resolveEffort(options));
 
-    const emitter = new ChunkEmitter(0);
+    // emitter 每轮新建（工具协议缓冲不跨轮），usage 差分基线注入会话级
+    // tracker——基线随 AgySession 跨轮持久，与 agy 累计计数器同生命周期。
+    const emitter = new ChunkEmitter(0, session);
 
     try {
       for await (const line of session.streamTurn(prompt, options.signal)) {

@@ -1,5 +1,6 @@
-import type { FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm';
+import type { FinishReason, StreamChunk } from '@deepseek-ai/dsh-llm';
 import { ToolCallProtocol } from './tool-protocol.js';
+import type { UsageTracker } from './usage.js';
 
 export interface AgyUsage {
   input_tokens?: number;
@@ -52,12 +53,16 @@ export type AgyEvent = AgyInitEvent | AgyStepUpdateEvent | AgyResultEvent | { ev
 
 export class ChunkEmitter {
   private readonly toolProtocol: ToolCallProtocol;
-  private lastInputTokens = 0;
-  private lastOutputTokens = 0;
-  private lastThinkingTokens = 0;
+  private readonly usageTracker: UsageTracker;
 
-  constructor(initialBlockIndex = 0) {
+  /**
+   * usage 差分基线由注入的 UsageTracker 持有（生产中是 AgySession，与 agy
+   * 进程同生命周期）。emitter 每轮 stream() 新建，绝不能自带跨轮记账状态，
+   * 否则复用会话时会把累计 usage 当成本轮增量重复上报。
+   */
+  constructor(initialBlockIndex: number, usageTracker: UsageTracker) {
     this.toolProtocol = new ToolCallProtocol(initialBlockIndex);
+    this.usageTracker = usageTracker;
   }
 
   getToolProtocol(): ToolCallProtocol {
@@ -88,30 +93,11 @@ export class ChunkEmitter {
       // 1. Flush any buffered text or tool call from the protocol
       chunks.push(...this.toolProtocol.flush());
 
-      // 2. Compute delta usage
+      // 2. Usage：agy 的 result.usage 是会话累计值，差分由会话级 UsageTracker 完成
       if (res.usage) {
-        const currentInput = res.usage.input_tokens ?? 0;
-        const currentOutput = res.usage.output_tokens ?? 0;
-        const currentThinking = res.usage.thinking_tokens ?? 0;
-
-        const deltaInput = Math.max(0, currentInput - this.lastInputTokens);
-        const deltaOutput = Math.max(0, currentOutput - this.lastOutputTokens);
-        const deltaThinking = Math.max(0, currentThinking - this.lastThinkingTokens);
-
-        this.lastInputTokens = currentInput;
-        this.lastOutputTokens = currentOutput;
-        this.lastThinkingTokens = currentThinking;
-
-        const tokenUsage: TokenUsage = {
-          inputTokens: deltaInput,
-          outputTokens: deltaOutput,
-          totalTokens: deltaInput + deltaOutput,
-          reasoningTokens: deltaThinking,
-        };
-
         chunks.push({
           type: 'usage',
-          usage: tokenUsage,
+          usage: this.usageTracker.takeUsageDelta(res.usage),
         });
       }
 
