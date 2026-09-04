@@ -30,8 +30,8 @@ dsh plugin --profile web add <本目录绝对路径>   # 装进 web profile 联�
 
 ## agy 备忘
 
-- 二进制：`agy`（1.1.22，`C:/Users/JonahWu/AppData/Local/agy/bin/agy`）。
-- 会话模式：`agy --input-format stream-json --output-format stream-json`，stdin 每行一条 `{"event":"user","message":{"content":"..."}}`，stdout 每行一条事件，每轮以 `result` 事件收尾；`result` 的 `usage`、`num_turns`、`duration_seconds` 是整会话累计值，`response` 才是本轮文本。
+- 二进制：`agy`（1.1.26，`C:/Users/JonahWu/AppData/Local/agy/bin/agy`）。
+- 会话模式：`agy --input-format stream-json --output-format stream-json`，stdin 每行一条 `{"event":"user","message":{"content":"..."}}`，stdout 每行一条事件，每轮以 `result` 事件收尾；`result` 的 `usage`、`num_turns`、`duration_seconds` 是整会话累计值，`response` 才是本轮文本。实测（2026-09-04）：`output_tokens` 包含 `thinking_tokens`，`total_tokens = input_tokens + output_tokens`（不含 cache_read），详见 `docs/plan.md` 第 3 节。
 - 关 stdin 即优雅结束会话；畸形输入会让会话立即终止，对照官方文档的错误表处理。
 - 作为模型后端的 agy 进程：永远带 `--dangerously-skip-permissions`，cwd 锁在 scratch 目录。
 - 登录终端例外：设置页按钮 spawn 的是用户自己的交互式会话，跑纯 `agy`，`detached` 加 `windowsHide: false`，窗口开在用户桌面。

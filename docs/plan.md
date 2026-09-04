@@ -35,6 +35,11 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 - settings 的 schemastery Schema 没有任何按钮或 action 字段类型。设置面板的自定义交互走插槽：客户端 `ctx.slots.register({name:'settings.section', id, order, label}, Component)` 注册整页 React 组件，宿主侧 `ctx.webServer.register` 挂 `/api/<插件前缀>` 路由，组件用同源 `fetch` 调用。样板插件的登录页 `CodexSubscriptionSection`（其 `lib/client.js` 330 行起）和 `registerRoutes`（其 `lib/index.js` 2623 行起）就是这套结构。
 - dsh-web 没有可复用的浏览器终端组件，`dsh-terminal` 是宿主内部 PTY 注册表，没有浏览器渲染面。登录终端只能 spawn 系统终端窗口。
 - `settings.yaml` 里现有的 `agent-default-model: deepseek-official/deepseek-v4-flash` 不动，agy 作为新增 provider 出现。
+- **2026-09-04 usage 语义实测**（agy 1.1.26，`scripts/probe-usage-semantics.mjs`，gemini-3.1-pro high，两轮持续会话 + 官方文档样例交叉验证）：
+  - 持续会话终态 `result.usage` 为会话累计值（input/output/thinking/cache_read/total 全部字段）；`step_update.usage` 为 per-step 值，且每个带 usage 的 step 都满足 `total = input + output`（cache_read 不计入 total）。
+  - **`thinking_tokens ⊆ output_tokens`（BRANCH1，实验判定）**：无工具调用的 step 严丝合缝——校准轮 output=283 = thinking 282 + 可见 "OK\n"≈1；重思考轮收尾 step output=35 = thinking 30 + 可见 "76127\n"≈5；官方样例 582 = 551 + 31 同样吻合。模型调用 agy 内置工具时，工具请求 token 也计入 output（step 残差 120/77 且均紧跟 tool step）。四个观测样本全部满足 `output = thinking + 非思考输出`。
+  - 时序证据：思考全部发生在首个可见 token 之前（firstTextDeltaRelMs ≈ 21.2s vs agy 轮处理时长 6.3s），即思考时间落入 DSH 的 TTFT 而非 decode 窗口。
+  - 推论：若把含思考的 output 原样上报，DSH Turn TPS 分子按思考 token 过计量——实测校准轮未修正口径下 TPS 会虚高两个数量级。因此插件上报 `outputTokens = 非思考输出差值`、`reasoningTokens = thinking 差值`、`totalTokens = input+output 差值`（provider 口径）、`cacheReadTokens = cache_read 差值`（字段在场时）。
 
 ## 4. 总体设计
 
@@ -66,7 +71,8 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 | `src/flatten.ts` | `TranscriptFlattener` | dsh 的 `system/messages/tools` 压平为 agy user 消息；历史哈希指纹链 |
 | `src/tool-protocol.ts` | `ToolCallProtocol` | 工具调用提示词注入模板 + 增量解析状态机 |
 | `src/models.ts` | `ModelCatalog` | agy slug 清单、contextWindow 表、reasoning efforts 元数据 |
-| `src/chunks.ts` | `ChunkEmitter` | agy NDJSON 事件转 dsh `StreamChunk` |
+| `src/chunks.ts` | `ChunkEmitter` | agy NDJSON 事件转 dsh `StreamChunk`（usage 记账委托 UsageTracker） |
+| `src/usage.ts` | `UsageBaseline` | 会话级 usage 差分基线：累计值折算本轮增量 TokenUsage |
 | `src/config.ts` | 设置段 | settings Schema 与默认值 |
 | `src/login.ts` | 登录管理 | `/api/dsh-agy/*` 路由 handler：spawn 系统终端跑交互式 agy、探测 agy 存在性与登录状态 |
 | `src/client.ts` | 浏览器入口 | 注册 `settings.section` 页：登录按钮、状态行、错误条 |
@@ -76,7 +82,7 @@ dsh（deepseek harness，npm 包 `@deepseek-ai/dsh`，全局安装）的模型�
 1. dsh agent 循环调 `adapter.stream(options)`，`options` 里有全量 `system/messages/tools`、`reasoningEffort`、`sessionId`、`purpose`、`signal`。
 2. `AgySessionManager` 按会话键找常驻进程；会话键 = `sessionId::purpose`（缺省 purpose 视为 `conversation`）。dsh 的标题/压缩辅助调用与主对话共享 sessionId 但 purpose 不同且可能并发，必须按 purpose 隔离成独立 agy 进程，否则辅助调用的指纹不匹配会把正在流式的主进程杀掉。进程不存在或指纹分叉，则 kill 旧进程、spawn 新进程（`agy --input-format stream-json --output-format stream-json --dangerously-skip-permissions --model <slug> --effort <e>`，cwd 锁定 scratch 目录），首条消息发送压平后的全量历史。进程健在且指纹一致，只发送增量消息（新的 user 输入和 tool-result）。不同 dsh 会话与子代理（childId）各自独立进程，可并行。
 3. agy 的 NDJSON 输出逐行解析：`step_update` 里 `agent_response` 的 `text_delta` 交给 `ToolCallProtocol` 增量解析，分流为 `text-delta` 或 `tool-call-delta`。
-4. `result` 事件映射为 `usage` chunk（agy 的 usage 是累计值，插件存上次累计值算本轮差值）和 `finish` chunk。
+4. `result` 事件映射为 `usage` chunk 和 `finish` chunk。agy 的 usage 是会话累计值，差分基线归属持有 agy 进程的 `AgySession`（`UsageBaseline`，与累计值同生命周期）：会话复用时跨 `stream()` 调用持久，进程重建（分叉/崩溃/空闲回收/respawn）时随 `spawnProcess()` 归零；`ChunkEmitter` 每轮新建，只做协议映射、不持记账状态。上报口径（依据第 3 节实测）：`inputTokens` = input 差值（agy 口径不含缓存命中）、`outputTokens` = output 差值扣除 thinking 差值（非思考输出）、`reasoningTokens` = thinking 差值、`totalTokens` = input+output 差值（provider 口径）、`cacheReadTokens` = cache_read 差值（字段在场时）。
 5. `options.signal` 触发 abort 时 kill 进程，按 `LlmError('...', 'ABORTED')` 收尾，下次请求自动重建会话。
 
 ### 4.4 设置页与登录入口

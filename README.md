@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Jonah-Wu23/dsh-agy-safe/releases"><img src="https://img.shields.io/badge/version-v0.1.3-blue" alt="Version 0.1.3" /></a>
+  <a href="https://github.com/Jonah-Wu23/dsh-agy-safe/releases"><img src="https://img.shields.io/badge/version-v0.1.6-blue" alt="Version 0.1.6" /></a>
   <img src="https://img.shields.io/badge/platform-DSH%20%7C%20Node.js%20ESM-2F5D50" alt="Platform" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-5B6C8F" alt="MIT License" /></a>
   <a href="https://github.com/topics/dsh-plugin"><img src="https://img.shields.io/badge/topic-dsh--plugin-E8B25C" alt="dsh-plugin" /></a>
@@ -60,7 +60,7 @@
 ├─────────────────────────────────────────────┤
 │ AgySessionManager / ChildProcess Pool       │  进程管理：进程生命周期与异常重放
 ├─────────────────────────────────────────────┤
-│ Antigravity CLI (agy 1.1.22)                │  底层模型：本地无头流式会话
+│ Antigravity CLI (agy 1.1.26)                │  底层模型：本地无头流式会话
 └─────────────────────────────────────────────┘
 ```
 
@@ -69,7 +69,7 @@
 1. **会话解析**：接收生成请求后，系统比对传入消息与常驻进程的历史哈希链。
 2. **增量调度**：历史前缀一致时仅发送增量输入；若发生上下文分叉，系统重置子进程并重放完整记录。
 3. **输出转换**：逐行解析输出事件，将文本增量与工具调用请求转换为标准数据块。
-4. **状态反馈**：任务完成时汇总输入输出用量，向调用方提供终止状态。
+4. **状态反馈**：任务完成时按会话级用量基线折算本轮输入输出与思考 token，向调用方提供终止状态。
 
 ## 快速上手
 
@@ -116,8 +116,10 @@ dsh web
 | `src/flatten.ts` | 历史消息压平与状态哈希计算。 |
 | `src/models.ts` | 模型目录定义与思考等级映射。 |
 | `src/chunks.ts` | 进程事件流到 Harness 数据块的格式映射。 |
+| `src/usage.ts` | 会话级用量差分基线，折算本轮增量 token。 |
 | `src/login.ts` | 原生终端唤起与凭据可用性探测。 |
 | `src/client.ts` | 前端设置面板的交互组件。 |
+| `scripts/` | 真实 agy 联调工具：用量语义探针与增量上报验证。 |
 | `test/` | 面向协议状态机与纯函数的单元测试套件。 |
 
 ## 参与项目
