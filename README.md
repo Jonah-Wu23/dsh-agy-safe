@@ -30,6 +30,8 @@
 
 **dsh-agy-safe 将本机已登录的 Antigravity CLI（agy）无头会话接入 DeepSeek Harness，作为一级模型提供方。主对话与子代理均可调用该提供方，保持一致的流式生成与工具分发体验。**
 
+插件只复用你自己账号在本机登录的官方 Antigravity CLI 会话，凭据与用量均归属本人账号，合规地在 dsh 中使用自己的 Antigravity 额度，不涉及任何共享账号或第三方中转。
+
 插件为本地 CLI 提供面向 Harness 平台的适配能力：
 
 - **无头会话桥接**：以子进程管道连接 agy 的流式交互，由 Harness 统一驱动智能体循环。
@@ -100,6 +102,16 @@ dsh plugin --profile web add <本地仓库路径>
 ```bash
 dsh web
 ```
+
+### 安装官方 Antigravity CLI（首次使用）
+
+插件复用本机已登录的 Antigravity CLI（agy）会话，首次使用前请先从官方源下载安装 CLI（PowerShell）：
+
+```powershell
+irm https://antigravity.google/cli/install.ps1 | iex
+```
+
+安装完成后在终端运行 `agy --version` 确认可用，再进入下面的登录配置。
 
 ### 登录与凭据配置
 
