@@ -50,6 +50,10 @@
 | 工具分发 | 平台原生支持 | 结构化标记解析与双向转换 |
 | 会话维护 | 无状态 HTTP 往返 | 常驻长连接结合哈希分叉重建 |
 
+主对话可直接调起 agy 子代理，右侧任务管理器实时展示子代理状态与所用模型：
+
+![主对话调起 agy 子代理](assets/screenshot-subagent.png)
+
 ## 架构设计
 
 插件采用模块化分层架构，适配 DeepSeek Harness 生态：
@@ -119,6 +123,14 @@ irm https://antigravity.google/cli/install.ps1 | iex
 2. 点击「打开登录终端」按钮，系统会调起桌面终端运行登录命令。
 3. 完成登录后，点击「验证登录凭据」确认会话状态。
 4. 在模型列表中选择 `agy` 分组下的模型即可开始交互。
+
+设置专页提供安装状态检测、凭据目录探测、登录终端唤起与凭据验证：
+
+![Antigravity CLI 设置专页](assets/screenshot-settings.png)
+
+模型列表中的 Antigravity CLI 分组，收录 Gemini、Claude、GPT-OSS 等可用模型：
+
+![模型列表中的 Antigravity CLI 分组](assets/screenshot-model-picker.png)
 
 ## 仓库结构
 
